@@ -101,12 +101,20 @@ void MallobIpasir::submitJob() {
         j["precursor"] = "ipasir." + getJobName(_revision-1);
     }
 
+    j["configuration"]["__NV"] = std::to_string(_num_vars);
+    j["configuration"]["__NC"] = std::to_string(_num_cls);
+
     // Create named pipe for result JSON
     mkfifo(getResultJsonPath().c_str(), 0777);
+
+    // Define local directory
+    std::string local_directory;
+    local_directory = std::string(getenv("HOME")) + "/Desktop/ipasir";
 
     // Submit JSON
     if (_interface == FILESYSTEM) {
         writeJson(j, _api_directory + "/in/ipasir." + jobName + ".json");
+        writeJson(j, local_directory + "/ipasir." + jobName + ".json");
     } else {
         sendJson(j);
     }
@@ -187,12 +195,31 @@ int MallobIpasir::solve() {
                 close(fd);
             } else {
                 _model.resize(_num_vars+1, 0);
-                std::vector<std::string> dimacsModelLines = j["result"]["solution"].get<std::vector<std::string>>();
-                std::vector<int> lits = tokenizeDimacsLines(dimacsModelLines);
-                for (int lit : lits) {
-                    const int var = std::abs(lit);
-                    _model[var] = lit;
+    
+                // Check the type of the solution field
+                if (j["result"]["solution"].is_array()) {
+                    // Handle as array of integers
+                    if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+                        std::vector<int> modelLits = j["result"]["solution"].get<std::vector<int>>();
+                        printf("(%.3f) Got direct integer solution of size %lu\n", Timer::elapsedSeconds(), modelLits.size());
+                        
+                        for (int lit : modelLits) {
+                            const int var = std::abs(lit);
+                            _model[var] = lit;
+                        }
+                    } else {
+                        // Handle as array of strings (original code)
+                        std::vector<std::string> dimacsModelLines = j["result"]["solution"].get<std::vector<std::string>>();
+                        std::vector<int> lits = tokenizeDimacsLines(dimacsModelLines);
+                        for (int lit : lits) {
+                            const int var = std::abs(lit);
+                            _model[var] = lit;
+                        }
+                    }
+                } else {
+                    printf("(%.3f) ERROR: Unknown solution format\n", Timer::elapsedSeconds());
                 }
+
             }
         } else if (resultcode == 20) {
             // UNSAT
@@ -208,9 +235,23 @@ int MallobIpasir::solve() {
                 close(fd);
                 _failed_assumptions.insert(asmpt.begin(), asmpt.end());
             } else {
-                std::vector<std::string> dimacsFailedLines = j["result"]["solution"].get<std::vector<std::string>>();
-                std::vector<int> asmpts = tokenizeDimacsLines(dimacsFailedLines);
-                _failed_assumptions.insert(asmpts.begin(), asmpts.end());
+                // Check the type of the solution field
+                if (j["result"]["solution"].is_array()) {
+                    // Handle as array of integers
+                    if (j["result"]["solution"].size() > 0 && j["result"]["solution"][0].is_number()) {
+                        std::vector<int> failedAssumptions = j["result"]["solution"].get<std::vector<int>>();
+                        printf("(%.3f) Got direct integer failed assumptions of size %lu\n", 
+                              Timer::elapsedSeconds(), failedAssumptions.size());
+                        _failed_assumptions.insert(failedAssumptions.begin(), failedAssumptions.end());
+                    } else {
+                        // Handle as array of strings (original code)
+                        std::vector<std::string> dimacsFailedLines = j["result"]["solution"].get<std::vector<std::string>>();
+                        std::vector<int> asmpts = tokenizeDimacsLines(dimacsFailedLines);
+                        _failed_assumptions.insert(asmpts.begin(), asmpts.end());
+                    }
+                } else {
+                    printf("(%.3f) ERROR: Unknown solution format for UNSAT case\n", Timer::elapsedSeconds());
+                }
             }
         } else {
             // UNKNOWN
@@ -302,7 +343,7 @@ std::string MallobIpasir::getResultJsonPath() {
 
 std::string MallobIpasir::drawRandomApiPath() {
     srand(getpid());
-    auto globResult = cppGlob(_tmp_dir + "/mallob.apipath.*");
+    auto globResult = cppGlob(_tmp_dir + "/edu.kit.iti.mallob.apipath.*");
     if (globResult.empty()) {
         printf("ERROR: Cannot find any API paths at %s/mallob.apipath.* !", _tmp_dir.c_str());
         exit(EXIT_FAILURE);
@@ -376,6 +417,8 @@ std::optional<nlohmann::json> MallobIpasir::readJson(const std::string& file) {
         nlohmann::json j;
         std::ifstream i(file);
         i >> j;
+        // debug print
+        printf("(%.3f) JSON content: %s\n", Timer::elapsedSeconds(), j.dump().c_str());
         opt.emplace(std::move(j));
         printf("(%.3f) Received %s\n", Timer::elapsedSeconds(), file.c_str());
     } catch (...) {}
