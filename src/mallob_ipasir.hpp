@@ -126,4 +126,7 @@ private:
     void completeRead(int fd, char* data, int numBytes);
 
     std::vector<int> tokenizeDimacsLines(const std::vector<std::string>& lines);
+
+    bool isCompressedModel(const std::string& str);
+    std::vector<int> decompressModel(const std::string& compressedModel);
 };

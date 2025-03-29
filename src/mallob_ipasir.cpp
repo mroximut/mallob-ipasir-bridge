@@ -100,7 +100,7 @@ void MallobIpasir::submitJob() {
     if (_incremental && _revision > 0) {
         j["precursor"] = "ipasir." + getJobName(_revision-1);
     }
-
+    
     j["configuration"]["__NV"] = std::to_string(_num_vars);
     j["configuration"]["__NC"] = std::to_string(_num_cls);
 
@@ -216,6 +216,11 @@ int MallobIpasir::solve() {
                             _model[var] = lit;
                         }
                     }
+                } else if (j["result"]["solution"].is_string() && isCompressedModel(j["result"]["solution"].get<std::string>())) {
+                    // Handle single compressed model string
+                    std::string compressedModel = j["result"]["solution"].get<std::string>();
+                    printf("(%.3f) Got compressed model: %s\n", Timer::elapsedSeconds(), compressedModel.c_str());
+                    _model = decompressModel(compressedModel);
                 } else {
                     printf("(%.3f) ERROR: Unknown solution format\n", Timer::elapsedSeconds());
                 }
@@ -526,7 +531,46 @@ std::vector<int> MallobIpasir::tokenizeDimacsLines(const std::vector<std::string
     return result;
 }
 
+bool MallobIpasir::isCompressedModel(const std::string& str) {
+    // A compressed model starts with a number followed by a colon
+    // and contains only digits and letters a-f
+    if (str.empty()) return false;
+    
+    size_t pos = str.find(':');
+    if (pos == std::string::npos) return false;
+    
+    return true;
+}
 
+std::vector<int> MallobIpasir::decompressModel(const std::string& compressedModel) {
+    char* solutionStr;
+    size_t nbVars = std::strtoul(compressedModel.c_str(), &solutionStr, 10); // reads until ":"
+    assert(solutionStr[0] == ':');
+    std::vector<int> solution(nbVars+1, 0); // index 0 has a filler 0
+
+    int strpos = 1; // after ":"
+    int var = 1;
+    while (solutionStr[strpos] != '\0') {
+        char c = solutionStr[strpos];
+        std::string cAsString(1, c);
+        char* endptr;
+        int num = std::strtol(cAsString.c_str(), &endptr, 16);
+        assert(endptr - cAsString.c_str() == 1); // read exactly one character!
+        if (var <= nbVars) solution[var] = (num & 1) ? var : -var;
+        var++;
+        if (var <= nbVars) solution[var] = (num & 2) ? var : -var;
+        var++;
+        if (var <= nbVars) solution[var] = (num & 4) ? var : -var;
+        var++;
+        if (var <= nbVars) solution[var] = (num & 8) ? var : -var;
+        var++;
+        strpos++;
+    }
+    //LOG(V2_INFO, "MAXSAT DECOMPRESS %s ==> %s\n", packed.c_str(), StringUtils::getSummary(solution, INT_MAX).c_str());
+
+    printf("(%.3f) Decompressed model to size %lu\n", Timer::elapsedSeconds(), solution.size());
+    return solution;
+}
 
 
 // IPASIR C methods

@@ -38,7 +38,7 @@ int main() {
     // Add assumption: x2 must be true
     ipasir_assume(solver, 2);
     ipasir_assume(solver, 1);
-    ipasir_assume(solver, -3);
+    //ipasir_assume(solver, -3);
     
     // Set up termination callback (optional)
     //bool should_terminate = false;
