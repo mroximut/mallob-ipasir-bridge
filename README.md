@@ -21,3 +21,13 @@ Otherwise, stale job nodes that are reserved for the dead job may accumulate and
 
 * The termination method is not functional yet because Mallob does not yet support arbitrary interruption of a certain incremental job "from the outside".
 * No clauses are reported even if a callback is supplied: Mallob does not export clauses to the outside (yet).
+
+
+## Usage with CBMC
+
+* Execeute `make` in this directory.
+* Build cbmc in its own directory with the following command:
+``` make -C src LIBS="<path_to_the_bridge>/mallob-ipasir-bridge/libipasirmallob.a" IPASIR="<path_to_the_bridge>/mallob-ipasir-bridge/src" ```
+* Go to the mallob directory and run `build/mallob -t=1 -compress-models`
+* Go to the cbmc directory and run `./src/cbmc/cbmc <to_be_verified>.c`
+* While verifing some programs with cbmc, the resulting SAT instance might not have clauses but still assumptions. To handle that cases, one can disable the assert in `mallob/src/app/sat/execution/engine:132`.
