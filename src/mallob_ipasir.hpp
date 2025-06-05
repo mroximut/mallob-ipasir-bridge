@@ -61,12 +61,17 @@ private:
     std::optional<nlohmann::json> _result_json;
     bool _json_read {false};
 
+    bool _consecutive_zero {false};
 public:
     MallobIpasir(Interface interface, bool incremental);
     
     std::string getSignature() const;
 
     void addLiteral(int lit) {
+        if (lit == 0 && _formula.back() == 0) {
+            _consecutive_zero = true;
+            return;
+        }
         _formula.push_back(lit);
         if (_presubmitted && _formula.size() >= 512) {
             completeWrite(_fd_formula, (char*)_formula.data(), _formula.size()*sizeof(int));

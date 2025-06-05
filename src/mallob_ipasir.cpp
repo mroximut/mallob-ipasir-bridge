@@ -101,20 +101,20 @@ void MallobIpasir::submitJob() {
         j["precursor"] = "ipasir." + getJobName(_revision-1);
     }
     
-    j["configuration"]["__NV"] = std::to_string(_num_vars);
-    j["configuration"]["__NC"] = std::to_string(_num_cls);
+    //j["configuration"]["__NV"] = std::to_string(_num_vars);
+    //j["configuration"]["__NC"] = std::to_string(_num_cls);
 
     // Create named pipe for result JSON
     mkfifo(getResultJsonPath().c_str(), 0777);
 
     // Define local directory
     std::string local_directory;
-    local_directory = std::string(getenv("HOME")) + "/Desktop/ipasir";
+    //local_directory = std::string(getenv("HOME")) + "/Desktop/ipasir";
 
     // Submit JSON
     if (_interface == FILESYSTEM) {
         writeJson(j, _api_directory + "/in/ipasir." + jobName + ".json");
-        writeJson(j, local_directory + "/ipasir." + jobName + ".json");
+        //writeJson(j, local_directory + "/ipasir." + jobName + ".json");
     } else {
         sendJson(j);
     }
@@ -124,6 +124,18 @@ void MallobIpasir::submitJob() {
 }
 
 int MallobIpasir::solve() {
+
+    if (_consecutive_zero) {
+        _revision++;
+        _presubmitted = false;
+
+        if (_incremental) {
+            _formula.clear();
+            _assumptions.clear();
+            _num_cls = 0;
+        }
+        return 20;
+    }
 
     if (!_presubmitted) {
         submitJob();
@@ -219,7 +231,7 @@ int MallobIpasir::solve() {
                 } else if (j["result"]["solution"].is_string() && isCompressedModel(j["result"]["solution"].get<std::string>())) {
                     // Handle single compressed model string
                     std::string compressedModel = j["result"]["solution"].get<std::string>();
-                    printf("(%.3f) Got compressed model: %s\n", Timer::elapsedSeconds(), compressedModel.c_str());
+                    //printf("(%.3f) Got compressed model: %s\n", Timer::elapsedSeconds(), compressedModel.c_str());
                     _model = decompressModel(compressedModel);
                 } else {
                     printf("(%.3f) ERROR: Unknown solution format\n", Timer::elapsedSeconds());
@@ -423,7 +435,7 @@ std::optional<nlohmann::json> MallobIpasir::readJson(const std::string& file) {
         std::ifstream i(file);
         i >> j;
         // debug print
-        printf("(%.3f) JSON content: %s\n", Timer::elapsedSeconds(), j.dump().c_str());
+        //printf("(%.3f) JSON content: %s\n", Timer::elapsedSeconds(), j.dump().c_str());
         opt.emplace(std::move(j));
         printf("(%.3f) Received %s\n", Timer::elapsedSeconds(), file.c_str());
     } catch (...) {}
