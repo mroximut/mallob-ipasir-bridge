@@ -128,6 +128,7 @@ int MallobIpasir::solve() {
     if (_consecutive_zero) {
         _revision++;
         _presubmitted = false;
+        printf("There was an empty clause");
 
         if (_incremental) {
             _formula.clear();

@@ -62,18 +62,21 @@ private:
     bool _json_read {false};
 
     bool _consecutive_zero {false};
+    bool _back_is_zero_before_write {true};
 public:
     MallobIpasir(Interface interface, bool incremental);
     
     std::string getSignature() const;
 
     void addLiteral(int lit) {
-        if (lit == 0 && _formula.back() == 0) {
+        if (lit == 0 && (_back_is_zero_before_write || (_formula.back() == 0))) {
             _consecutive_zero = true;
             return;
         }
         _formula.push_back(lit);
+        _back_is_zero_before_write = false;
         if (_presubmitted && _formula.size() >= 512) {
+            if (_formula.back() == 0) _back_is_zero_before_write = true;
             completeWrite(_fd_formula, (char*)_formula.data(), _formula.size()*sizeof(int));
             _formula.clear();
         }
